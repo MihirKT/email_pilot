@@ -4,9 +4,10 @@ from .extensions import db, sess, csrf
 from config import DevelopmentConfig, ProductionConfig
 import os
 
-def create_app(config_class=DevelopmentConfig):
+def create_app(config_class=ProductionConfig):
     app = Flask(__name__, instance_relative_config=True)
-    if os.environ.get("FLASK_ENV") == "production": config_class = ProductionConfig
+    if os.environ.get("FLASK_ENV") == "development":
+        config_class = DevelopmentConfig
     app.config.from_object(config_class)
     try: os.makedirs(app.instance_path)
     except OSError: pass
