@@ -1,0 +1,25 @@
+# --- Core Web Framework ---
+Flask==3.0.3
+Werkzeug==3.0.3
+gunicorn==22.0.0
+
+# --- Data and Database ---
+SQLAlchemy==2.0.30
+Flask-SQLAlchemy==3.1.1
+
+# --- Asynchronous Tasks & Caching ---
+celery==5.4.0
+redis==5.0.5
+
+# --- Google API Integration ---
+google-api-python-client==2.134.0
+google-auth-oauthlib==1.2.1
+gspread==6.1.0
+
+# --- Web Utilities & Security ---
+Flask-Session==0.8.0
+Flask-WTF==1.2.1
+
+# --- Other Utilities ---
+python-dotenv==1.0.1
+vaderSentiment==3.3.2

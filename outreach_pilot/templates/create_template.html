@@ -1,0 +1,69 @@
+{% extends "layout.html" %}
+
+{% block title %}Create New Template{% endblock %}
+
+{% block head_extra %}
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+{% endblock %}
+
+{% block content %}
+<style>
+    .page-header { display: flex; justify-content: space-between; align-items: center; }
+    .page-header h2 { margin: 0; }
+    label { display: block; margin-top: 1.5em; font-weight: bold; margin-bottom: 0.5em;}
+    input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px;}
+    .form-actions { margin-top: 1.5em; display: flex; align-items: center; gap: 20px; }
+    .button { color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; border: none; font-size: 16px; cursor: pointer; display: inline-block; }
+    .button.primary { background-color: #28a745; }
+    .button.primary:hover { background-color: #218838; }
+    .cancel-link { color: #6c757d; text-decoration: none; }
+    .cancel-link:hover { text-decoration: underline; }
+</style>
+
+<div class="page-header">
+    <h2>Create a New Email Template</h2>
+</div>
+
+<form action="{{ url_for('template_manager.create_template') }}" method="post" id="createTemplateForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    
+    <label for="subject">Subject:</label>
+    <input type="text" id="subject" name="subject" required>
+    
+    <label for="body-editor">Body:</label>
+    <div id="body-editor" style="height: 300px; border: 1px solid #ccc; border-radius: 8px;"></div>
+    <input type="hidden" id="body" name="body" required>
+
+    <div class="form-actions">
+        <input type="submit" value="Create Template" class="button primary">
+        <a href="{{ url_for('template_manager.list_templates') }}" class="cancel-link">Cancel</a>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quill = new Quill('#body-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'clean']
+            ]
+        },
+        placeholder: 'Compose your email template...',
+    });
+
+    const form = document.getElementById('createTemplateForm');
+    const hiddenBodyInput = document.getElementById('body');
+
+    form.addEventListener('submit', function(e) {
+        // More robust way to get Quill content using the API
+        hiddenBodyInput.value = quill.root.innerHTML;
+    });
+});
+</script>
+{% endblock %}
+

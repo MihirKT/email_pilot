@@ -1,0 +1,238 @@
+{% extends "layout.html" %}
+
+{% block title %}Configure Campaign for "{{ g_sheet_name }}"{% endblock %}
+
+{% block head_extra %}
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+{% endblock %}
+
+{% block content %}
+<style>
+    .config-box { border: 1px solid #eee; padding: 1.5em; border-radius: 8px; margin-top: 1em; }
+    label { display: block; margin-top: 1em; font-weight: bold; }
+    select, input[type="number"], input[type="text"] { width: 100%; padding: 10px; box-sizing: border-box; margin-top: 5px; border: 1px solid #ccc; border-radius: 8px;}
+    .time-input-group { display: flex; align-items: center; gap: 10px; }
+    .time-input-group input { flex-grow: 1; }
+    .time-input-group select { width: 120px; }
+    input[type="submit"] { background-color: #28a745; color: white; border: none; padding: 12px 20px; cursor: pointer; margin-top: 1.5em; border-radius: 8px; font-size: 16px; width: 100%;}
+    .template-editor { margin-top: 1em; padding: 1em; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
+    select[multiple] { height: 150px; }
+    input[type=checkbox] + label {display: inline; font-weight: normal;}
+    .helper-text { font-size: 0.9em; color: #666; font-weight: normal; margin-top: 2px; margin-bottom: 10px; }
+    .column-mapping { display: flex; gap: 20px; margin-top: 1em; flex-wrap: wrap; }
+    .column-mapping > div { flex: 1; min-width: 250px; }
+</style>
+
+<h2>Configure Campaign for "<strong>{{ g_sheet_name }}</strong>"</h2>
+
+<div class="config-box">
+    <form action="{{ url_for('campaigns.start_campaign') }}" method="post" id="campaignForm" data-headers-url="{{ url_for('campaigns.get_sheet_headers') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <label for="contacts_sheet">1. Select Contact Sheet(s):</label>
+        <select name="contacts_sheet" id="contacts_sheet" required multiple>
+            {% for sheet in sheets %}
+                <option value="{{ sheet }}">{{ sheet }}</option>
+            {% endfor %}
+        </select>
+
+        <div id="column-mapping-container" style="display:none">
+            <label>2. Confirm Column Mapping:</label>
+            <p class="helper-text">Confirm the Name and Email columns for each sheet.</p>
+            <div id="mapping-sections"></div>
+        </div>
+
+        <h3 style="margin-top:2em">Email Sequence</h3>
+        <p class="helper-text">Choose a base template, then edit the content. You can also <a href="{{ url_for('template_manager.list_templates') }}" target="_blank">manage templates here</a>.</p>
+        <div class="template-selector">
+            <label for="initial_template_select">Load Initial Email Template:</label>
+            <select id="initial_template_select">
+                <option value="">-- Start with a blank template --</option>
+                {% for template in templates %}
+                    <option value="{{ template.id }}">{{ template.subject }}</option>
+                {% endfor %}
+            </select>
+            <div class="template-editor">
+                <label for="initial_subject">Initial Email Subject:</label>
+                <input type="text" name="initial_subject" id="initial_subject" required>
+                <label for="initial_body_editor">Initial Email Body:</label>
+                <div id="initial_body_editor" style="height:300px"></div>
+                <input type="hidden" name="initial_body" id="initial_body">
+            </div>
+        </div>
+
+        <div>
+            <input type="checkbox" id="use_different_followups" name="use_different_followups">
+            <label for="use_different_followups">Use different templates for follow-ups</label>
+        </div>
+        <div style="margin-top:1em">
+            <input type="checkbox" id="use_random_followups" name="use_random_followups">
+            <label for="use_random_followups">Use random templates for follow-ups</label>
+        </div>
+        <div id="followup_templates_container" style="display:none;margin-left:20px;border-left:2px solid #eee;padding-left:20px"></div>
+
+        <h3 style="margin-top:2em">Follow-up Schedule</h3>
+        <label for="num_followups">Number of follow-ups:</label>
+        <input type="number" id="num_followups" name="num_followups" value="1" min="0" max="5" required>
+
+        <label for="total_wait_time_value">Wait time before follow-up:</label>
+        <div class="time-input-group">
+            <input type="number" id="total_wait_time_value" name="total_wait_time_value" value="3" min="1" required>
+            <select name="total_wait_time_unit" id="total_wait_time_unit">
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days" selected>Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+            </select>
+        </div>
+
+        <label for="check_frequency_value">Check for replies every:</label>
+        <div class="time-input-group">
+            <input type="number" id="check_frequency_value" name="check_frequency_value" value="4" min="1" required>
+            <select name="check_frequency_unit" id="check_frequency_unit">
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours" selected>Hours</option>
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+            </select>
+        </div>
+
+        <input type="submit" value="Verify & Start Campaign">
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const allTemplates = {{ templates|tojson|safe }};
+    const campaignForm = document.getElementById('campaignForm');
+    const getHeadersUrl = campaignForm.dataset.headersUrl;
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    const contactsSheetSelect = document.getElementById('contacts_sheet');
+    const mappingContainer = document.getElementById('column-mapping-container');
+    const mappingSections = document.getElementById('mapping-sections');
+    const quillInstances = new Map();
+
+    function initQuill(editorId) {
+        if (quillInstances.has(editorId)) return; // avoid duplicate init
+        const quill = new Quill(`#${editorId}`, {
+            theme: 'snow',
+            modules: { toolbar: [[{ 'header': [1, 2, false] }], ['bold', 'italic', 'underline'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link']] },
+            placeholder: 'Compose your email...'
+        });
+        quillInstances.set(editorId, quill);
+    }
+
+    initQuill('initial_body_editor');
+
+    campaignForm.addEventListener('submit', function() {
+        quillInstances.forEach((quill, editorId) => {
+            const hiddenInputId = editorId.replace('_editor', '');
+            const hiddenInput = document.getElementById(hiddenInputId);
+            if (quill && hiddenInput) {
+                hiddenInput.value = quill.root.innerHTML;
+            }
+        });
+    });
+
+    contactsSheetSelect.addEventListener('change', async function() {
+        const selectedSheets = Array.from(this.selectedOptions).map(opt => opt.value);
+        mappingSections.innerHTML = '';
+        if (selectedSheets.length === 0) { mappingContainer.style.display = 'none'; return; }
+        mappingContainer.style.display = 'block';
+        for (const sheet of selectedSheets) {
+            try {
+                const response = await fetch(getHeadersUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ worksheet_name: sheet })
+                });
+                const data = await response.json();
+                if (response.ok && data.headers) {
+                    const wrapper = document.createElement('div');
+                    wrapper.classList.add('column-mapping');
+                    wrapper.innerHTML = `
+                        <div style="flex-basis: 100%; margin-top: 1em; padding-bottom: 0.5em; border-bottom: 1px solid #eee;"><strong>Sheet: ${sheet}</strong></div>
+                        <div><label for="name_column_${sheet}">NAME column:</label><select name="name_column_${sheet}" required><option value="">--Select--</option>${data.headers.map(h => `<option value="${h}" ${h === data.suggested_name ? 'selected' : ''}>${h}</option>`).join('')}</select></div>
+                        <div><label for="email_column_${sheet}">EMAIL column:</label><select name="email_column_${sheet}" required><option value="">--Select--</option>${data.headers.map(h => `<option value="${h}" ${h === data.suggested_email ? 'selected' : ''}>${h}</option>`).join('')}</select></div>`;
+                    mappingSections.appendChild(wrapper);
+                }
+            } catch (error) { console.error("Error fetching sheet headers:", error); }
+        }
+    });
+
+    function populateTemplateEditor(type, index = 0) {
+
+        let selectId, subjectId, editorId;
+        if (type === 'initial') {
+            [selectId, subjectId, editorId] = ['initial_template_select', 'initial_subject', 'initial_body_editor'];
+        } else {
+            [selectId, subjectId, editorId] = [`followup_${index}_template_select`, `followup_${index}_subject`, `followup_${index}_editor`];
+        }
+        const templateId = document.getElementById(selectId).value;
+        const subjectInput = document.getElementById(subjectId);
+        const editor = quillInstances.get(editorId);
+        if (!templateId) {
+            subjectInput.value = '';
+            if (editor) editor.root.innerHTML = '';
+            return;
+        }
+        const template = allTemplates.find(t => t.id == templateId);
+        
+        console.log(editor);
+
+        if (template && editor) {
+            subjectInput.value = template.subject;
+            editor.clipboard.dangerouslyPasteHTML(template.body);
+        }
+    }
+
+    function handleFollowupOptionChange(e) {
+        const differentCheckbox = document.getElementById('use_different_followups');
+        const randomCheckbox = document.getElementById('use_random_followups');
+        if (e.target.id === 'use_different_followups' && e.target.checked) { randomCheckbox.checked = false; }
+        if (e.target.id === 'use_random_followups' && e.target.checked) { differentCheckbox.checked = false; }
+        document.getElementById('followup_templates_container').style.display = differentCheckbox.checked ? 'block' : 'none';
+        updateFollowupSelectors();
+    }
+
+    function updateFollowupSelectors() {
+        const container = document.getElementById('followup_templates_container');
+        const numFollowups = document.getElementById('num_followups').value;
+        container.innerHTML = '';
+        if (!document.getElementById('use_different_followups').checked) { return; }
+        for (let i = 1; i <= numFollowups; i++) {
+            const editorId = `followup_${i}_editor`;
+            const hiddenInputId = `followup_${i}_body`;
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `
+                <div class="template-selector" style="margin-top: 1.5em;">
+                    <label for="followup_${i}_template_select">Load Follow-up #${i} Template:</label>
+                    <select id="followup_${i}_template_select">
+                        <option value="">-- Blank --</option>
+                        ${allTemplates.map(t => `<option value="${t.id}">${t.subject}</option>`).join('')}
+                    </select>
+                    <div class="template-editor">
+                        <label for="followup_${i}_subject">Follow-up #${i} Subject:</label>
+                        <input type="text" name="followup_${i}_subject" id="followup_${i}_subject" required>
+                        <label for="${editorId}">Follow-up #${i} Body:</label>
+                        <div id="${editorId}" style="height:300px;"></div>
+                        <input type="hidden" name="${hiddenInputId}" id="${hiddenInputId}">
+                    </div>
+                </div>`;
+            container.appendChild(wrapper);
+            initQuill(editorId);
+            document.getElementById(`followup_${i}_template_select`).addEventListener('change', () => populateTemplateEditor('followup', i));
+        }
+    }
+
+    document.getElementById('initial_template_select').addEventListener('change', () => populateTemplateEditor('initial'));
+    document.getElementById('use_different_followups').addEventListener('change', handleFollowupOptionChange);
+    document.getElementById('use_random_followups').addEventListener('change', handleFollowupOptionChange);
+    document.getElementById('num_followups').addEventListener('change', updateFollowupSelectors);
+});
+</script>
+{% endblock %}

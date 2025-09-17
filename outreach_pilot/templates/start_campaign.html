@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}Start New Campaign{% endblock %}
+
+{% block content %}
+<style>
+    h2 { margin-top: 0; }
+    form { margin-top: 2em; }
+    select { width: 100%; padding: 12px; font-size: 16px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; background-color: #fff; }
+    .submit-btn { 
+        background-color: #007bff; 
+        color: white; 
+        border: none; 
+        padding: 12px 24px; 
+        cursor: pointer; 
+        border-radius: 8px; 
+        font-size: 16px; 
+        margin-top: 1.5em; 
+        width: 100%;
+        transition: background-color 0.3s;
+    }
+    .submit-btn:hover {
+        background-color: #0056b3;
+    }
+    label { font-weight: bold; display: block; margin-bottom: 8px; }
+</style>
+
+<h2>Start a New Campaign</h2>
+<p>To begin, please select the Google Sheet containing your contact list.</p>
+
+<form action="{{ url_for('campaigns.configure_campaign') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    
+    <label for="sheet_id">Select a Google Sheet:</label>
+    <select name="sheet_id" id="sheet_id" required>
+        <option value="" disabled selected>-- Please choose a sheet --</option>
+        {% for sheet in sheets %}
+            <option value="{{ sheet.id }}">{{ sheet.name }}</option>
+        {% else %}
+            <option value="" disabled>No spreadsheets found in your Google Drive.</option>
+        {% endfor %}
+    </select>
+    
+    <input type="submit" value="Load & Configure Campaign" class="submit-btn">
+</form>
+
+{% endblock %}

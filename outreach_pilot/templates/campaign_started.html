@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block title %}Campaign Started{% endblock %}
+
+{% block content %}
+<style>
+    .confirmation-container { 
+        text-align: center; 
+        padding: 40px 0; 
+    }
+    .confirmation-container h2 { 
+        color: #28a745; 
+        font-size: 1.8em;
+        margin-bottom: 0.5em;
+    }
+    .confirmation-container p {
+        font-size: 1.1em;
+        color: #555;
+    }
+    .start-again-btn {
+        display: inline-block;
+        margin-top: 1.5em;
+        padding: 12px 24px;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: bold;
+        transition: background-color 0.3s;
+    }
+    .start-again-btn:hover {
+        background-color: #0056b3;
+    }
+</style>
+
+<div class="confirmation-container">
+    <h2>✅ Campaign Successfully Started!</h2>
+    <p>Your outreach campaign for the sheet "<strong>{{ sheet_name }}</strong>" is now running in the background.</p>
+    <p>You can safely close this window. The agent will continue to work on the server.</p>
+    
+    <a href="{{ url_for('campaigns.index') }}" class="start-again-btn">Start Another Campaign</a>
+</div>
+{% endblock %}
